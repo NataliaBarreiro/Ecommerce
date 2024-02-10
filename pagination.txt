@@ -1,0 +1,122 @@
+5. ¿Cómo implementarías la paginación en una API que devuelve
+una lista grande de recursos? Proporciona un ejemplo
+práctico. (Opcional)
+
+Opción 1
+
+from flask import Flask, jsonify, request
+from flask_sqlalchemy import SQLAlchemy
+
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///productos.db'
+db = SQLAlchemy(app)
+
+class Producto(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(100), nullable=False)
+    precio = db.Column(db.Float, nullable=False)
+    descripcion = db.Column(db.Text, nullable=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'nombre': self.nombre,
+            'precio': self.precio,
+            'descripcion': self.descripcion
+        }
+
+PER_PAGE_DEFAULT = 10
+
+@app.route('/productos', methods=['GET'])
+def obtener_productos():
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', PER_PAGE_DEFAULT, type=int)
+
+    productos = Producto.query.paginate(page, per_page, error_out=False)
+
+    if not productos.items:
+        return jsonify({'message': 'No hay productos disponibles en esta página'}), 404
+
+    productos_list = [producto.to_dict() for producto in productos.items]
+
+    response = {
+        'page': productos.page,
+        'total_pages': productos.pages,
+        'per_page': productos.per_page,
+        'total_items': productos.total,
+        'productos': productos_list
+    }
+
+    return jsonify(response)
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+
+
+Se define un modelo SQLAlchemy llamado Producto para representar los productos en la base de datos. 
+SQLAlchemy se utiliza para definir un modelo que contiene atributos como id, nombre, precio y descripcion. 
+Esto permite organizar y acceder a los datos de los productos de manera estructurada.
+
+Se establece una ruta en la API (/productos) que acepta dos parámetros de consulta: page y per_page. 
+Cuando los usuarios realizan solicitudes a esta ruta, pueden especificar la página de resultados que 
+desean ver y cuántos productos desean ver por página. Esto proporciona flexibilidad y control sobre la 
+cantidad de datos que se devuelven en cada solicitud.
+
+Se utiliza el método paginate proporcionado por SQLAlchemy para dividir los resultados de la consulta en 
+páginas. Al acceder a la ruta /productos, se utiliza el método paginate para dividir los resultados en páginas 
+basadas en los parámetros de consulta proporcionados. Esto permite manejar grandes conjuntos de datos de 
+manera eficiente y mejorar el rendimiento de la API.
+
+Se convierten los objetos Producto en diccionarios utilizando el método to_dict, facilitando la serialización 
+en formato JSON. Se define un método to_dict en la clase Producto para convertir los objetos en diccionarios. 
+Esto permite serializar los objetos de manera efectiva para que puedan ser devueltos como respuestas JSON a 
+los usuarios de la API.
+
+Se devuelve una respuesta JSON que incluye información sobre la paginación y la lista de productos en la 
+página actual. La respuesta JSON que devuelve la API contiene detalles sobre la paginación, como el número 
+de página actual, el número total de páginas, el número de elementos por página, el número total de elementos 
+y la lista de productos en la página actual. Esto proporciona a los usuarios información completa sobre los 
+resultados devueltos y les ayuda a navegar por los datos de manera eficiente.
+
+Opción 2
+
+Dependiendo del manejo de los datos, según el gestor de bases de datos utilizado, se puede manejar el paginado
+directamente de las consultas de la base de datos, en las sentencias que se manejen, de esta manera, los datos 
+ingresarán de manera limitada, según la cantidad de datos que se requieren.
+
+
+Supongamos que tienes una tabla llamada productos con las columnas id, nombre, precio.
+Con el manejo de LIMIT, obtendremos lo siguiente
+
+sql
+Copy code
+SELECT * FROM productos
+ORDER BY id
+LIMIT {offset}, {per_page};
+Donde:
+
+{offset} es el número de filas que quieres saltar para llegar a la página deseada.
+{per_page} es el número de filas que quieres en cada página.
+Por ejemplo, si deseas obtener la segunda página de productos con 10 productos por página, el cálculo sería:
+
+offset = (número de página - 1) * productos por página = (2 - 1) * 10 = 10
+per_page = 10 (en este caso)
+Por lo tanto, la sentencia SQL sería:
+
+sql
+Copy code
+SELECT * FROM productos
+ORDER BY id
+LIMIT 10, 10;
+Esto devolverá los productos desde el índice 10 hasta el índice 19, que serían los productos de la 
+segunda página.
+
+Es importante tener en cuenta que algunos sistemas de gestión de bases de datos pueden requerir un ajuste en la forma en que se calcula el offset, ya que pueden comenzar el conteo desde 0 o desde 1.
+
+
+
+
+
+
+
